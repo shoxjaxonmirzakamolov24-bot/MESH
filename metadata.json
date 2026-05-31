@@ -1,0 +1,6 @@
+{
+  "name": "SkillMesh",
+  "description": "AI-Powered Global Skill Exchange Network Telegram Mini App MVP with AI Matching, Chat, Community, Agreements, and Credits systems",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
