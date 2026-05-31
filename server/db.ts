@@ -227,6 +227,21 @@ class DatabaseManager {
     return u;
   }
 
+  // Login paytida admin rolini env ro'yxatiga moslab yangilaydi
+  updateUserRole(id: string, role: 'user' | 'admin'): User | undefined {
+    const u = this.getUser(id);
+    if (u && u.role !== role) {
+      u.role = role;
+      this.save();
+    }
+    return u;
+  }
+
+  // Bir martalik premium bonusi allaqachon berilganmi (kredit farming oldini olish)
+  hasPremiumBonus(userId: string): boolean {
+    return this.state.transactions.some(t => t.userId === userId && t.type === 'premium_buy');
+  }
+
   // --- Profiles ---
   getProfiles(): Profile[] {
     return this.state.profiles;
@@ -347,20 +362,39 @@ class DatabaseManager {
     const ag = this.state.agreements.find(a => a.id === id);
     if (!ag) return undefined;
 
-    if (ag.proposerId === userId) {
-      ag.proposerSigned = true;
-    } else if (ag.receiverId === userId) {
-      ag.receiverSigned = true;
+    // Yakunlangan yoki bekor qilingan kelishuvni qayta imzolab bo'lmaydi
+    if (ag.status === 'completed' || ag.status === 'cancelled') {
+      throw new Error('Bu kelishuv allaqachon yakunlangan yoki bekor qilingan.');
     }
 
-    // If both sign, lock credits details
-    if (ag.proposerSigned && ag.receiverSigned) {
-      ag.status = 'agreed';
+    const isProposer = ag.proposerId === userId;
+    const isReceiver = ag.receiverId === userId;
+    if (!isProposer && !isReceiver) {
+      throw new Error('Siz bu kelishuv ishtirokchisi emassiz.');
+    }
 
-      // Deduct staked credits from whichever proposer staked
+    // Bu imzo kelishuvni to'liq imzolaydimi?
+    const willBeFullySigned =
+      (isProposer ? true : ag.proposerSigned) && (isReceiver ? true : ag.receiverSigned);
+
+    // To'liq imzolanishdan OLDIN balansni tekshiramiz (qisman mutatsiyaning oldini olish uchun)
+    if (willBeFullySigned && ag.status === 'pending' && ag.creditStaked > 0) {
       const pStake = this.getProfile(ag.proposerId);
-      if (pStake && ag.creditStaked > 0) {
-        pStake.credits = Math.max(0, pStake.credits - ag.creditStaked);
+      if (!pStake) throw new Error('Taklif qiluvchi profili topilmadi.');
+      if (pStake.credits < ag.creditStaked) {
+        throw new Error('Garov uchun hisobingizda yetarli MESH kredit yo\'q.');
+      }
+    }
+
+    // Endi imzoni xavfsiz qo'yamiz
+    if (isProposer) ag.proposerSigned = true;
+    if (isReceiver) ag.receiverSigned = true;
+
+    // Faqat pending -> agreed o'tishida BIR MARTA garovni blokla (idempotent)
+    if (ag.proposerSigned && ag.receiverSigned && ag.status === 'pending') {
+      if (ag.creditStaked > 0) {
+        const pStake = this.getProfile(ag.proposerId)!;
+        pStake.credits -= ag.creditStaked;
         this.state.transactions.push({
           id: `tx-stake-${Date.now()}`,
           userId: ag.proposerId,
@@ -370,6 +404,7 @@ class DatabaseManager {
           timestamp: new Date().toISOString()
         });
       }
+      ag.status = 'agreed';
     }
 
     this.save();
@@ -380,12 +415,20 @@ class DatabaseManager {
     const ag = this.state.agreements.find(a => a.id === id);
     if (!ag) return undefined;
 
+    // Faqat imzolangan (agreed) kelishuvni yakunlash mumkin — idempotentlik va soxta o'tkazmaning oldini oladi
+    if (ag.status !== 'agreed') {
+      throw new Error('Faqat ikki tomon imzolagan (agreed) kelishuvni yakunlash mumkin.');
+    }
+    if (ag.proposerId !== confirmerId && ag.receiverId !== confirmerId) {
+      throw new Error('Siz bu kelishuv ishtirokchisi emassiz.');
+    }
+
     ag.status = 'completed';
 
-    // Transfer staked credits to other party
+    // Garov taklif qiluvchidan (proposer) yechilgan edi -> mahorat egasiga (receiver) o'tkaziladi
     const creditsToTransfer = ag.creditStaked;
     if (creditsToTransfer > 0) {
-      const recipientId = ag.proposerId === confirmerId ? ag.receiverId : ag.proposerId;
+      const recipientId = ag.receiverId;
       const recProfile = this.getProfile(recipientId);
       if (recProfile) {
         recProfile.credits += creditsToTransfer;
@@ -398,13 +441,13 @@ class DatabaseManager {
           timestamp: new Date().toISOString()
         });
       }
-
-      // Add experience/trust points boost to both
-      const p1 = this.getProfile(ag.proposerId);
-      const p2 = this.getProfile(ag.receiverId);
-      if (p1) p1.trustScore = Math.min(100, p1.trustScore + 2);
-      if (p2) p2.trustScore = Math.min(100, p2.trustScore + 2);
     }
+
+    // Ikkala tomonga ishonch ballidan bonus
+    const p1 = this.getProfile(ag.proposerId);
+    const p2 = this.getProfile(ag.receiverId);
+    if (p1) p1.trustScore = Math.min(100, p1.trustScore + 2);
+    if (p2) p2.trustScore = Math.min(100, p2.trustScore + 2);
 
     this.save();
     return ag;
@@ -540,6 +583,11 @@ class DatabaseManager {
   forceResolveAgreement(id: string, outcome: 'release' | 'refund'): ExchangeAgreement | undefined {
     const ag = this.state.agreements.find(a => a.id === id);
     if (!ag) return undefined;
+
+    // Faqat escrowda turgan (agreed) kelishuvni hal qilish mumkin — takroriy release/refund oldini olamiz
+    if (ag.status !== 'agreed') {
+      throw new Error('Faqat escrowda turgan (agreed) kelishuvni admin hal qila oladi.');
+    }
 
     const creditsToTransfer = ag.creditStaked;
 

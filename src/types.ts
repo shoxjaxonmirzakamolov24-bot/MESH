@@ -12,6 +12,7 @@ export interface User {
   languageCode?: string;
   isPremium: boolean;
   joinDate: string;
+  role: 'user' | 'admin';
 }
 
 export interface Skill {

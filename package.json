@@ -1,7 +1,8 @@
 {
-  "name": "react-example",
+  "name": "skillmesh",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "SkillMesh - AI-powered global skill exchange Telegram Mini App with matching, chat, escrow credits, community and reviews.",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -17,6 +18,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.1",
@@ -25,7 +27,10 @@
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.14.0",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
