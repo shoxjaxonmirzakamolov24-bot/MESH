@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { User, Profile, Match, Message, Conversation, ExchangeAgreement, Review, Transaction, CommunityPost, CommunityComment, Notification } from './types.ts';
 import { SKILL_TEMPLATES } from './data.ts';
+import { setAuthToken, getTelegramInitData, getTelegramWebApp } from './api.ts';
 
 export default function App() {
   // Splash & Onboarding
@@ -154,8 +155,11 @@ export default function App() {
   // Perform automatic authentication on mount or login
   const handleAuthSync = async (forceParams?: { id: string; username: string; firstName: string; lastName: string }) => {
     try {
-      setLoadingAction('Bulutli tarvoza orqali autentifikatsiya qilinmoqda...');
-      const reqBody = forceParams ? {
+      setLoadingAction('Bulutli darvoza orqali autentifikatsiya qilinmoqda...');
+
+      // 1-ustuvor: haqiqiy Telegram WebApp initData (server imzoni tekshiradi)
+      const initData = getTelegramInitData();
+      const devBody = forceParams ? {
         id: forceParams.id,
         username: forceParams.username,
         first_name: forceParams.firstName,
@@ -170,6 +174,7 @@ export default function App() {
         photo_url: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${customUsername}`,
         language_code: 'uz'
       };
+      const reqBody = initData ? { initData } : devBody;
 
       const res = await fetch('/api/auth/sync', {
         method: 'POST',
@@ -179,7 +184,10 @@ export default function App() {
       const data = await res.json();
       
       if (data.error) throw new Error(data.error);
-      
+
+      // JWT tokenni saqlaymiz — keyingi barcha so'rovlarga avtomatik qo'shiladi
+      setAuthToken(data.token || null);
+
       setSyncedUser(data.user);
       setUserProfile(data.profile);
       setEditBio(data.profile.bio);
@@ -252,6 +260,23 @@ export default function App() {
     }, 12000); // Poll list directories every 12 seconds
     return () => clearInterval(interval);
   }, [syncedUser]);
+
+  // Telegram Mini App ichida ochilganda avtomatik autentifikatsiya (imzo serverda tekshiriladi)
+  useEffect(() => {
+    const tg = getTelegramWebApp();
+    if (tg) {
+      try {
+        tg.ready();
+        tg.expand();
+      } catch {
+        /* WebApp API mavjud emas — e'tiborsiz qoldiramiz */
+      }
+    }
+    if (getTelegramInitData()) {
+      handleAuthSync();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load chat logs on active thread change
   useEffect(() => {
@@ -988,8 +1013,8 @@ export default function App() {
               </button>
             )}
 
-            {/* Admin Shield Console */}
-            {syncedUser && (
+            {/* Admin Shield Console — faqat admin roli uchun ko'rinadi */}
+            {syncedUser && syncedUser.role === 'admin' && (
               <button 
                 onClick={() => setActiveTab(activeTab === 'admin' ? 'home' : 'admin')}
                 className={`relative w-8 h-8 rounded-full border flex items-center justify-center transition cursor-pointer ${

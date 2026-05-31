@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Lokal JSON ma'lumotlar bazasi (vaqtinchalik, commit qilinmasin)
+data/
