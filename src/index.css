@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .glass-card {
+    background: rgba(22, 22, 22, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .gold-glow {
+    box-shadow: 0 0 20px rgba(245, 185, 51, 0.15);
+  }
+
+  .gold-glow-strong {
+    box-shadow: 0 0 35px rgba(245, 185, 51, 0.35);
+  }
+
+  .gold-border-glow {
+    border-color: rgba(245, 185, 51, 0.3);
+    box-shadow: 0 0 15px rgba(245, 185, 51, 0.1);
+  }
+
+  /* Custom scrollbar behaviors */
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom animation keyframes */
+@keyframes gold-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(245, 185, 51, 0.4);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 12px 4px rgba(245, 185, 51, 0.2);
+  }
+}
+
+.animate-gold-pulse {
+  animation: gold-pulse 2s infinite ease-in-out;
+}
+
+body {
+  background-color: #020202;
+  color: #ffffff;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  margin: 0;
+  overflow-x: hidden;
+}
+
